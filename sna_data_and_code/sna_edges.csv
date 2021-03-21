@@ -1,0 +1,17 @@
+from,to,duration,reasonLinked
+Ben Cohen,Barak Obama,22,collaboration
+Ben Cohen,Sally Smith,5,collaboration
+Sally Smith,Ben Cohen,2,collaboration
+Jose Vega,Ben Cohen,11,competition
+Barak Obama,Jose Vega,9,competition
+Barak Obama,Sanjay Amazing,19,racing
+Tom Tiny,Silly Putty,14,racing
+Tom Tiny,Green Giant,3,competition
+Tom Tiny,Mixed Message,33,collaboration
+Mixed Message,Sally Smith,20,racing
+Silly Putty,Barak Obama,13,competition
+Mixed Message,Jose Vega,15,racing
+Mixed Message,Ben Cohen,8,competition
+Mixed Message,Sanjay Amazing,5,racing
+Green Giant,Lipitor Max,3,competition
+Lipitor Max,Big Trouble,1,collaboration
