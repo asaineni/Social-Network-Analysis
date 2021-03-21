@@ -1,0 +1,365 @@
+---
+title: "Network Analysis"
+author: "Akhila Saineni, Nihar Garlapati"
+date: "7/12/2020"
+output:
+  html_document:
+    code_folding: hide
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r loaddata}
+library(igraph)
+library(ggplot2)
+library(expss)
+library(ggrepel)
+
+net1<-read.graph("/Users/akhilasaineni/Downloads/HU/2020Summer/DataViz512/7_0618V/cnet.dms",
+                 format="GraphML")
+
+htmlTable(
+  fre(
+ vertex.attributes(net1)$party) %>%
+   set_caption("House of Representatives")
+   )
+
+```
+
+
+
+
+## Introduction
+The main objective of the following analysis is to analyze the house members and their cosponsored bills. Calculating network metrics such as closeness,betweenness etc. Also looking at various cliques and communities within the network
+
+
+
+
+## Loading Data
+We loaded the "cnet" data that includes various vertex attributes along with the corresponding edge attributes. 
+The network loaded is a very large network and in the below analysis, We would sparsify the data into various sub networks.
+
+
+
+## Results
+
+### Basic network and the breakdown within parties
+We can look at the basic network and as mentioned, it is a very large network with 236 Democrats and 196 Republicans who have cosponsored many bills together.
+The size of the node/Vertex is determined by its degree. In general democrats(Avg:49.4) have higher degree than the republicans(Avg: 33.01)
+
+
+```{r overview }
+
+V(net1)$colorz = ifelse(V(net1)$party == "Republican", "red", "blue")
+democrats <- net1- V(net1)[which(V(net1)$party=='Republican')]
+republicans <- net1- V(net1)[which(V(net1)$party=='Democratic')]
+
+
+#Democrats and republicans with high degree of closeness.
+
+
+par(mfrow=c(1,1))
+
+set.seed(100)
+plot(net1,
+     vertex.color=V(net1)$colorz ,
+     vertex.size=degree(net1)*0.10,
+     layout =  layout.fruchterman.reingold,
+     vertex.label=NA,
+     vertex.label.dist=5,
+     edge.arrow.size=.3,
+     vertex.label.degree = pi/2,
+     vertex.label.cex=.9,
+)
+title("All House members") 
+
+
+par(mfrow=c(1,2))
+
+set.seed(100)
+plot(democrats,
+     vertex.color="blue",
+     vertex.size=degree(democrats)*0.20,
+     layout =  layout.fruchterman.reingold,
+     vertex.label=NA,
+     vertex.label.dist=5,
+     edge.arrow.size=.3,
+     vertex.label.degree = pi/2,
+     vertex.label.cex=.9,
+     )
+   title("Democratics")  
+set.seed(100)   
+plot(republicans,
+     vertex.color="Red",
+     vertex.size=degree(republicans)*0.20,
+     layout =  layout.fruchterman.reingold,
+     vertex.label=NA,
+     vertex.label.dist=5,
+     edge.arrow.size=.4,
+     vertex.label.degree = -pi/2,
+     vertex.label.cex=.9
+   )
+title("Republicans") 
+
+
+
+
+```
+
+
+### Sub Network of house members with more than average number of cosponsored bills
+In this section, We have sparsified the network to only the house members who have more than the mean number of cosponsored bills(169 house members), We are looking at the betweenness and closeness score of these house members. It is evident that in this sub-network there are more number of democrats(159) than republicans(10). P000613 from Democrats has the highest betweenness score(436.82) & S001165 has the highest closeness score(.003) and also the highest eigen centrality score. The size of the vertex in the below visuals is based on the statistic it is presenting.
+
+
+```{r highernumberofcosponsored stats  }
+
+
+net1_clean<-net1- V(net1)[which(V(net1)$cosponsored==-2147483648)]
+
+higherbills <- net1_clean- V(net1_clean)[which(V(net1_clean)$cosponsored<mean(V(net1_clean)$cosponsored))]
+
+
+#Statistics 
+
+ec<- eigen_centrality(higherbills, directed = FALSE)
+ecv<-ec$vector 
+
+par(mfrow=c(1,1))
+
+set.seed(100)
+plot(higherbills
+     ,vertex.color=V(higherbills)$colorz
+     ,vertex.size=sqrt(betweenness(higherbills))
+     ,vertex.label=ifelse(betweenness(higherbills)==max(betweenness(higherbills)),V(higherbills)$name,NA) 
+     ,edge.curved=T,
+     layout =  layout.fruchterman.reingold,
+     vertex.label.dist = 8
+)
+title("Betweenness ")
+
+set.seed(100)
+plot(higherbills
+     ,vertex.color=V(higherbills)$colorz
+     ,vertex.size=closeness(higherbills)*5000
+     ,edge.curved=T,
+     layout =  layout.fruchterman.reingold
+     ,vertex.label=ifelse(closeness(higherbills)==
+                            max(closeness(higherbills)),V(higherbills)$name,NA)
+     ,vertex.label.dist = 15,
+     vertex.label.degree = pi
+     
+    )
+
+    title("Closeness")
+ 
+ 
+
+set.seed(100)
+plot(higherbills
+     ,vertex.color=V(higherbills)$colorz
+     ,vertex.size=ecv*50
+     ,edge.curved=T,
+     layout =  layout.fruchterman.reingold
+     ,vertex.label=ifelse(closeness(higherbills)==
+                            max(closeness(higherbills)),V(higherbills)$name,NA)
+     ,vertex.label.dist = 15,
+     vertex.label.degree = pi
+     
+    )
+
+    title("Eigen Centrality")
+        
+
+
+```
+
+### Largest Cliques
+
+In the below analysis, We have created 2 new sub networks that consists of top 100 house members based on their seniority rank and also the bottom 100 house members based on their seniority rank.
+
+As you can see, In the top 100 subnetwork, We were able to identify a clique with majority as democrats and minority as republicans, In the bottom 100 subnetwork, We were able to identify another clique with majority as republicans and minority as democrats. 
+
+
+
+
+```{r top and bottom 100 by seniority clique  }
+
+
+#Top and bottom 100 representatives, their cliques and communities
+top100<-net1_clean- V(net1_clean)[which(V(net1_clean)$rank_from_high>100)]    
+        
+
+par(mfrow=c(1,1))
+
+vcol <- rep("grey80", vcount(top100))
+vcol[unlist(largest_cliques(top100))] <- "gold"
+
+plot(as.undirected(top100),vertex.size=15, vertex.label=ifelse(V(top100)$party=="Democratic","D","R"), vertex.color=vcol)
+title("Top 100 ranks and their largest clique")
+
+
+
+
+
+bottom100<-net1_clean- V(net1_clean)[which(V(net1_clean)$rank_from_high<337)]    
+
+
+vcol <- rep("grey80", vcount(bottom100))
+vcol[unlist(largest_cliques(bottom100))] <- "gold"
+plot(as.undirected(bottom100),vertex.size=15, vertex.label=ifelse(V(bottom100)$party=="Democratic","D","R"), vertex.color=vcol)
+title("Bottom 100 ranks and their largest clique")
+
+
+
+
+```
+
+
+### Community detection based on edge betweenness (Newman-Girvan)
+
+In the below analysis we have used Newman-Girvan algorithm to partition the top and bottom 100 sub networks to various communities. The top 100 sub network has 28 communities, which tells us that there aren't any big communities in this sub network, However in the bottom 100 sub network, we have only 8 communities, Which are bigger communities largely consisting of republicans.
+
+
+
+```{r top and bottom 100 by seniority community  }
+
+
+set.seed(100)
+ceb <- cluster_edge_betweenness(top100)
+plot(ceb, top100, vertex.label=ifelse(V(top100)$party=="Democratic","D","R")) 
+title("Communities in the top 100 ranks")
+
+#length(ceb)
+#membership(ceb)
+#length(ceb2)
+
+set.seed(100)
+ceb2 <- cluster_edge_betweenness(bottom100)
+plot(ceb2, bottom100, vertex.label=ifelse(V(bottom100)$party=="Democratic","D","R")) 
+title("Communities in the bottom 100 ranks")
+
+
+
+
+```
+
+### Diameter of the top 10 ranks
+
+In the analysis, We are looking into the top 10 house members by seniority. The goal is to calculate the longest Geodesic distance within the top 10 ranks. It appears that F000466(R) and G000551(D) has the longest distance between them. The path/edges between them is colored in orange. The primary affiliations of F000466 & G000551 are Foreign affairs and Natural Resources respectively.
+
+```{r Diameter  }
+
+
+
+
+#Diameter
+
+top10<-net1_clean- V(net1_clean)[which(V(net1_clean)$rank_from_high>10)] 
+
+diameter<-get_diameter(top10, directed = F)
+
+ecol <- rep("gray80", ecount(top10))
+
+ecol[E(top10, path=diameter)] <- "orange" 
+
+set.seed(102)
+plot(top10, vertex.color=V(top10)$colorz, edge.color=ecol, edge.arrow.mode=0, vertex.label=paste(V(top10)$name,"- ",V(top10)$a)
+     ,vertex.label.dist = 4,
+     vertex.label.degree = -pi
+     ,vertex.label.cex=.7)
+title("Longest Geodesic distance within the top 10 ranks ")
+
+
+
+
+
+#cats<-V(top10)$a
+#d<-V(top10)$name
+#catsd<-as.data.frame(cats,d)
+#catsd
+```
+### Graphs
+In the below visuals, We would like to analyze the closeness, betweenness & cosponsored bills by each party and the relation between the statistics. 
+Based on the scatter plot below, It is evident that Democrats have higher closeness score when compared to republicans and also have higher cosponsored bills. It appears that there is a positive relationship between closeness and the number of cosponsored bills. 
+
+In the next visual, We have a box plot of the betweenness score for both the parties. It is clear that democrats(avg 5.4) have a higher betweenness score as well when compared to republicans(avg 4.7). 
+
+
+```{r stat analysis in ggplots  }
+
+library(igraph)
+library(ggrepel)
+library(ggplot2)
+
+
+closeness<-closeness(net1_clean)
+cosponsored<-V(net1_clean)$cosponsored
+betweenness<-betweenness(net1_clean)
+party<-V(net1_clean)$party
+name<-V(net1_clean)$name
+
+abp<-as.data.frame(cbind(closeness,cosponsored,betweenness,party,name))
+
+summary(abp)
+
+
+abp$closeness=as.numeric(abp$closeness)
+
+abp$betweenness=as.numeric(abp$betweenness)
+
+abp$cosponsored=as.numeric(abp$cosponsored)
+
+
+#Scatterplot
+
+abp$label=ifelse(abp$cosponsored==max(abp$cosponsored),paste(abp$name),NA)
+abp$label_low=ifelse(abp$cosponsored==min(abp$cosponsored),paste(abp$name),NA)
+
+ggplot(abp, aes(closeness,log(cosponsored), color=party)) +
+  geom_point() +
+  geom_label_repel(label=abp$label,color="blue",force=100,nudge_x = 5, 
+                   nudge_y = 100000, na.rm = TRUE)+
+  geom_label_repel(label=abp$label_low,color="red",force=100,nudge_x = 0, 
+                   nudge_y = 0.5, na.rm = TRUE) +
+  scale_color_manual(values = c("blue", "red"),
+                       labels = c("Democrats", "Republicans")) +
+  theme_minimal() +
+ggtitle("Scatterplot of Closenes & Number of Cosponsored bills") +
+  theme(plot.title = element_text(size = 15,hjust = 0.5),plot.subtitle = element_text(size = 8) )  +
+  xlab("Closeness") +
+  ylab("Number of Cosponsored bills")
+
+
+#boxplot  
+  
+abp$label_b_o=ifelse(abp$betweenness==max(abp$betweenness) ,paste(abp$name,"  Highest Betweenness:", round(abp$betweenness,2)),NA)
+
+ggplot(abp, aes(party,log(betweenness), color=party)) +
+  geom_boxplot() +
+  scale_color_manual(values=c("blue", "red"))+
+  geom_label_repel(label=abp$label_b_o,color="blue",force=100,nudge_x = 0.1, nudge_y = 0.8, na.rm = TRUE) +
+  ggtitle("Boxplot of Betweenness by party") +
+  theme(plot.title = element_text(size = 15,hjust = 0.5),plot.subtitle = element_text(size = 8) ) +
+  xlab("Party") +
+  ylab("Betweenness")
+
+
+
+```
+
+
+
+## Bibliography
+
+Ognyanova, k(2016) Network Analysis and Visualization with R and igraph www.kateto.net  
+
+https://igraph.org/r/doc/ (2019)
+
+Fortunato, S(2016) Community detection in networks
+
+2019 Report card https://www.govtrack.us/congress/members/report-cards/2019/house/cosponsored
+
